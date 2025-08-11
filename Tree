@@ -1,0 +1,98 @@
+import math
+from collections import Counter
+
+data = [
+    {"CGPA": 8.7, "Interactive": "Yes", "Practical": "Excellent", "Communication": "Excellent", "JobOffer": "Yes"},
+    {"CGPA": 6.2, "Interactive": "No", "Practical": "Poor", "Communication": "Poor", "JobOffer": "No"},
+    {"CGPA": 7.5, "Interactive": "Yes", "Practical": "Good", "Communication": "Moderate", "JobOffer": "Yes"},
+    {"CGPA": 5.9, "Interactive": "No", "Practical": "Average", "Communication": "Poor", "JobOffer": "No"},
+    {"CGPA": 9.1, "Interactive": "Yes", "Practical": "Excellent", "Communication": "Excellent", "JobOffer": "Yes"},
+    {"CGPA": 6.8, "Interactive": "No", "Practical": "Average", "Communication": "Moderate", "JobOffer": "No"},
+    {"CGPA": 8.3, "Interactive": "Yes", "Practical": "Excellent", "Communication": "Good", "JobOffer": "Yes"},
+    {"CGPA": 5.4, "Interactive": "No", "Practical": "Poor", "Communication": "Poor", "JobOffer": "No"},
+]
+
+def discretize_cgpa(cgpa):
+    if cgpa >= 9:
+        return "High"
+    elif cgpa >= 8:
+        return "Medium"
+    else:
+        return "Low"
+
+for record in data:
+    record["CGPA"] = discretize_cgpa(record["CGPA"])
+
+def entropy(data_subset):
+    labels = [record["JobOffer"] for record in data_subset]
+    total = len(labels)
+    counts = Counter(labels)
+    ent = 0.0
+    for count in counts.values():
+        p = count / total
+        ent -= p * math.log2(p)
+    return ent
+
+def info_gain(data_subset, attribute):
+    total_entropy = entropy(data_subset)
+    values = set(record[attribute] for record in data_subset)
+    weighted_entropy = 0.0
+    total = len(data_subset)
+    for val in values:
+        subset = [record for record in data_subset if record[attribute] == val]
+        weighted_entropy += (len(subset) / total) * entropy(subset)
+    gain = total_entropy - weighted_entropy
+    return gain
+
+def majority_class(data_subset):
+    labels = [record["JobOffer"] for record in data_subset]
+    return Counter(labels).most_common(1)[0][0]
+
+def id3(data_subset, attributes):
+    labels = [record["JobOffer"] for record in data_subset]
+    if len(set(labels)) == 1:
+        return labels[0]
+    if not attributes:
+        return majority_class(data_subset)
+    gains = [(attr, info_gain(data_subset, attr)) for attr in attributes]
+    best_attr, best_gain = max(gains, key=lambda x: x[1])
+    if best_gain == 0:
+        return majority_class(data_subset)
+    tree = {best_attr: {}}
+    values = set(record[best_attr] for record in data_subset)
+    for val in values:
+        subset = [record for record in data_subset if record[best_attr] == val]
+        if not subset:
+            tree[best_attr][val] = majority_class(data_subset)
+        else:
+            remaining_attrs = [a for a in attributes if a != best_attr]
+            tree[best_attr][val] = id3(subset, remaining_attrs)
+    return tree
+
+attributes = ["CGPA", "Interactive", "Practical", "Communication"]
+decision_tree = id3(data, attributes)
+
+import pprint
+pprint.pprint(decision_tree)
+
+def predict(tree, sample):
+    if not isinstance(tree, dict):
+        return tree
+    attribute = next(iter(tree))
+    attribute_value = sample.get(attribute)
+    if attribute_value in tree[attribute]:
+        subtree = tree[attribute][attribute_value]
+    else:
+        return None
+    return predict(subtree, sample)
+
+# Example prediction
+new_sample = {
+    "CGPA": discretize_cgpa(7.1),
+    "Interactive": "Yes",
+    "Practical": "Good",
+    "Communication": "Moderate"
+}
+
+prediction = predict(decision_tree, new_sample)
+print(f"Predicted JobOffer: {prediction}")
